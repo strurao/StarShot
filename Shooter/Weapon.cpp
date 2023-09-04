@@ -11,57 +11,167 @@ AWeapon::AWeapon() :
 	WeaponType(EWeaponType::EWT_SubmachineGun),
 	AmmoType(EAmmoType::EAT_9mm),
 	ReloadMontageSection(FName(TEXT("Reload SMG"))),
-	ClipBoneName(TEXT("smg_clip"))
+	ClipBoneName(TEXT("smg_clip")),
+	SlideDisplacement(0.f),
+	SlideDisplacementTime(0.2f),
+	bMovingSlide(false),
+	MaxSlideDisplacement(4.f),
+	MaxRecoilRotation(20.f),
+	bAutomatic(true)
 {
 	PrimaryActorTick.bCanEverTick = true;
 }
-
 
 void AWeapon::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// Keep the Weapon upright. 무기를 수직으로 유지.
+	// Keep the Weapon upright
 	if (GetItemState() == EItemState::EIS_Falling && bFalling)
 	{
-		const FRotator MeshRotation{ 0.f, GetItemMesh()->GetComponentRotation().Yaw, 0.f }; // Yaw 는 수평 회전값이며, Pitch와 Roll 회전값을 0으로 설정.
-		GetItemMesh()->SetWorldRotation(MeshRotation, false, nullptr, ETeleportType::TeleportPhysics); 
-		//무기를 던질 때 메시의 회전이 즉시 변경되도록 하고, 물리 시뮬레이션을 재설정하지 않고 메시를 이동시킵니다. 
-		// 이를 통해 무기가 부드럽게 회전하면서도 다른 객체와의 충돌을 일으키지 않게 됩니다.
+		const FRotator MeshRotation{ 0.f, GetItemMesh()->GetComponentRotation().Yaw, 0.f };
+		GetItemMesh()->SetWorldRotation(MeshRotation, false, nullptr, ETeleportType::TeleportPhysics);
 	}
+	// Update slide on pistol
+	UpdateSlideDisplacement();
 }
 
+// ??? : 왜 안되지...
 void AWeapon::ThrowWeapon()
 {
-	FRotator MeshRotation{ 0.f, GetItemMesh()->GetComponentRotation().Yaw, 0.f }; // Yaw 회전값을 유지하여 메시를 수직으로 유지
+	FRotator MeshRotation{ 0.f, GetItemMesh()->GetComponentRotation().Yaw, 0.f };
 	GetItemMesh()->SetWorldRotation(MeshRotation, false, nullptr, ETeleportType::TeleportPhysics);
 
-	const FVector MeshForward{ GetItemMesh()->GetForwardVector() }; // 메시의 전방 벡터
-	const FVector MeshRight{ GetItemMesh()->GetRightVector() }; // 메시의 오른쪽 벡터
+	const FVector MeshForward{ GetItemMesh()->GetForwardVector() };
+	const FVector MeshRight{ GetItemMesh()->GetRightVector() };
 	// Direction in which we throw the Weapon
-	FVector ImpulseDirection = MeshRight.RotateAngleAxis(-20.f, MeshForward); // 메시의 전방 벡터를 기준으로 오른쪽으로 20도 회전한 방향벡터.
+	FVector ImpulseDirection = MeshRight.RotateAngleAxis(-20.f, MeshForward);
 
 	float RandomRotation{ 30.f };
-	ImpulseDirection = ImpulseDirection.RotateAngleAxis(RandomRotation, FVector(0.f, 0.f, 1.f)); // 랜덤 값을 이용하여 회전
-	ImpulseDirection *= 20'000.f; // 던질 힘을 설정
-	GetItemMesh()->AddImpulse(ImpulseDirection); // 메시에 힘을 가한다.
+	ImpulseDirection = ImpulseDirection.RotateAngleAxis(RandomRotation, FVector(0.f, 0.f, 1.f));
+	ImpulseDirection *= 10'000.f;
+	//ImpulseDirection *= 20'000.f;
+	GetItemMesh()->AddImpulse(ImpulseDirection);
 
 	bFalling = true;
-	GetWorldTimerManager().SetTimer(ThrowWeaponTimer, this, &AWeapon::StopFalling, ThrowWeaponTime);
-	//일정 시간(ThrowWeaponTime)이 지난 후 StopFalling 함수를 호출하도록 타이머를 설정
+	GetWorldTimerManager().SetTimer(
+		ThrowWeaponTimer,
+		this,
+		&AWeapon::StopFalling,
+		ThrowWeaponTime);
+
+	EnableGlowMaterial();
 }
 
 void AWeapon::StopFalling()
 {
 	bFalling = false;
-	SetItemState(EItemState::EIS_Pickup); // 무기의 상태를 "픽업 가능" 상태로 설정
+	SetItemState(EItemState::EIS_Pickup);
+	StartPulseTimer();
+}
+
+void AWeapon::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+	const FString WeaponTablePath{ TEXT("/Script/Engine.DataTable'/Game/_Game/DataTable/WeaponDataTable.WeaponDataTable'") };
+	UDataTable* WeaponTableObject = Cast<UDataTable>(StaticLoadObject(UDataTable::StaticClass(), nullptr, *WeaponTablePath));
+
+	if (WeaponTableObject)
+	{
+		FWeaponDataTable* WeaponDataRow = nullptr;
+		switch (WeaponType)
+		{
+		case EWeaponType::EWT_SubmachineGun:
+			WeaponDataRow = WeaponTableObject->FindRow<FWeaponDataTable>(FName("SubmachineGun"), TEXT(""));
+			break;
+		case EWeaponType::EWT_AssaultRifle:
+			WeaponDataRow = WeaponTableObject->FindRow<FWeaponDataTable>(FName("AssaultRifle"), TEXT(""));
+			break;
+		case EWeaponType::EWT_Pistol:
+			WeaponDataRow = WeaponTableObject->FindRow<FWeaponDataTable>(FName("Pistol"), TEXT(""));
+			break;
+		}
+
+		if (WeaponDataRow)
+		{
+			AmmoType = WeaponDataRow->AmmoType;
+			Ammo = WeaponDataRow->WeaponAmmo;
+			MagazineCapacity = WeaponDataRow->MagazineCapacity;
+			
+			SetPickupSound(WeaponDataRow->PickupSound);
+			SetEquipSound(WeaponDataRow->EquipSound);
+			GetItemMesh()->SetSkeletalMesh(WeaponDataRow->ItemMesh);
+			SetItemName(WeaponDataRow->ItemName);
+			SetIconItem(WeaponDataRow->InventoryIcon);
+			SetAmmoIcon(WeaponDataRow->AmmoIcon);
+
+			SetMaterialInstance(WeaponDataRow->MaterialInstance);
+			PreviousMaterialIndex = GetMaterialIndex();
+			GetItemMesh()->SetMaterial(PreviousMaterialIndex, nullptr);
+			SetMaterialIndex(WeaponDataRow->MaterialIndex);
+			SetClipBoneName(WeaponDataRow->ClipBoneName);
+			SetReloadMontageSection(WeaponDataRow->ReloadMontageSection);
+			GetItemMesh()->SetAnimInstanceClass(WeaponDataRow->AnimBP);
+
+			CrosshairsMiddle = WeaponDataRow->CrosshairsMiddle;
+			CrosshairsLeft = WeaponDataRow->CrosshairsLeft;
+			CrosshairsRight = WeaponDataRow->CrosshairsRight;
+			CrosshairsTop = WeaponDataRow->CrosshairsTop;
+			CrosshairsBottom = WeaponDataRow->CrosshairsBottom;
+
+			AutoFireRate = WeaponDataRow->AutoFireRate;
+			MuzzleFlash = WeaponDataRow->MuzzleFlash;
+			FireSound = WeaponDataRow->FireSound;
+
+			BoneToHide = WeaponDataRow->BoneToHide;
+			bAutomatic = WeaponDataRow->bAutomatic;
+
+			Damage = WeaponDataRow->Damage;
+			HeadShotDamage = WeaponDataRow->HeadShotDamage;
+		}
+
+		if (GetMaterialInstance())
+		{
+			SetDynamicMaterialInstance(UMaterialInstanceDynamic::Create(GetMaterialInstance(), this));
+			GetDynamicMaterialInstance()->SetVectorParameterValue(TEXT("FresnelColor"), GetGlowColor());
+			GetItemMesh()->SetMaterial(GetMaterialIndex(), GetDynamicMaterialInstance());
+
+			EnableGlowMaterial();
+		}
+
+	}
+}
+
+void AWeapon::BeginPlay()
+{
+	Super::BeginPlay();
+	if (BoneToHide != FName(""))
+	{
+		GetItemMesh()->HideBoneByName(BoneToHide, EPhysBodyOp::PBO_None);
+	}
+}
+
+void AWeapon::FinishMovingSlide()
+{
+	bMovingSlide = false;
+}
+
+void AWeapon::UpdateSlideDisplacement()
+{
+	if (SlideDisplacementCurve && bMovingSlide)
+	{
+		const float ElapsedTime{ GetWorldTimerManager().GetTimerElapsed(SlideTimer) };
+		const float CurveValue{ SlideDisplacementCurve->GetFloatValue(ElapsedTime) };
+		SlideDisplacement = CurveValue * MaxSlideDisplacement;
+		RecoilRotation = CurveValue * MaxRecoilRotation;
+	}
 }
 
 void AWeapon::DecrementAmmo()
 {
 	if (Ammo - 1 <= 0)
 	{
-		Ammo = 0; // We never fo negative.
+		Ammo = 0;
 	}
 	else
 	{
@@ -73,4 +183,20 @@ void AWeapon::ReloadAmmo(int32 Amount)
 {
 	checkf(Ammo + Amount <= MagazineCapacity, TEXT("Attempted to reload with more than magazine capacity!"));
 	Ammo += Amount;
+}
+
+void AWeapon::StartSlideTimer()
+{
+	bMovingSlide = true;
+	GetWorldTimerManager().SetTimer(
+		SlideTimer,
+		this,
+		&AWeapon::FinishMovingSlide,
+		SlideDisplacementTime
+	);
+}
+
+bool AWeapon::ClipIsFull()
+{
+	return Ammo >= MagazineCapacity;
 }
