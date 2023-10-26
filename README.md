@@ -12,11 +12,11 @@
   - 언리얼 엔진 에디터에서 각 총기 인스턴스의 데이터를 수정할 수 있다.
 
 - ``Behavior Tree`` 로 구현한 몬스터는 저마다 순찰 영역 ``AgroSphere`` 를 가진다.
-- ``AgroSphere`` 에 플레이어 캐릭터가 ``overlapped`` 되면, 몬스터는 플레이어를 공격한다.
-- ``AgroSphere`` 에 플레이어 캐릭터가 없어도, 캐릭터가 먼저 공격하면 캐릭터를 쫓아와 공격한다.
+  - ``AgroSphere`` 에 플레이어 캐릭터가 ``overlapped`` 되면, 몬스터는 플레이어를 공격한다.
+  - ``AgroSphere`` 에 플레이어 캐릭터가 없어도, 캐릭터가 먼저 공격하면 캐릭터를 쫓아와 공격한다.
 
 -  지면의 ``Physics Material`` 5가지 (물, 돌, 타일, 철, 풀) 에 따라 ``Particle System`` 과  ``SoundCue`` 설정
-- ``UMG (Unreal Motion Graphics)`` UI 위젯을 코드와 바인딩
+- ``UMG (Unreal Motion Graphics)`` UI 위젯을 코드와 바인딩하여 인벤토리, 총기 정보, 체력의 정보를 출력한다.
 
 ## 소개 링크 🎬
 - [Youtube](https://youtu.be/PPTi-WS36Zg)
