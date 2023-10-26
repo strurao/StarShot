@@ -1,9 +1,8 @@
-# TPS-Source
-### 개발 도구 🛠
+## 개발 도구 🛠
 - UE5.1
 - C++
 
-### 기능 🕹
+## 기능 🕹
 - Epic games Paragon Belica 플레이어 캐릭터에 Mixamo 애니메이션을 리타겟팅
 - 플레이어 캐릭터 애니메이션 ``Montage/BlendSpace``
   - 걷기, 달리기, 웅크리기, 총격, 재장전, 피격, 죽음 
@@ -19,7 +18,9 @@
 -  지면의 ``Physics Material`` 5가지 (물, 돌, 타일, 철, 풀) 에 따라 ``Particle System`` 과  ``SoundCue`` 설정
 - ``UMG (Unreal Motion Graphics)`` UI 위젯을 코드와 바인딩
 
-### 소개 영상 🎬
+## 소개 링크 🎬
 - [Youtube](https://youtu.be/PPTi-WS36Zg)
+
+
 
 ![썸넬02](https://github.com/strurao/StarShot/assets/126440235/a916be0f-5e04-4324-bab5-1478fdf5363b)
